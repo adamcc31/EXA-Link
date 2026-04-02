@@ -1,28 +1,42 @@
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { Sidebar } from '@/components/layout/sidebar';
+
 /**
- * Layout dashboard internal — akan diimplementasikan di Fase 4.
- * Menyediakan sidebar dan header untuk seluruh halaman /dashboard/*.
+ * Layout untuk semua halaman dashboard.
+ * Memvalidasi autentikasi dan menyediakan sidebar navigation.
  */
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
+  const supabase = await createClient();
+
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  if (!authUser) {
+    redirect('/login');
+  }
+
+  // Ambil profil user
+  const { data: userProfile } = await supabase
+    .from('users')
+    .select('full_name, role')
+    .eq('id', authUser.id)
+    .single();
+
+  if (!userProfile) {
+    redirect('/login');
+  }
+
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar — akan diimplementasikan di Fase 4 */}
-      <aside className="hidden w-64 border-r border-border bg-sidebar lg:block">
-        <div className="flex h-16 items-center px-6">
-          <span className="text-lg font-bold text-sidebar-foreground">EXATA</span>
-        </div>
-        <nav className="space-y-1 px-3 py-4">
-          <p className="px-3 text-xs text-muted-foreground">
-            Navigasi akan diimplementasikan di Fase 4
-          </p>
-        </nav>
-      </aside>
-      {/* Konten Utama */}
-      <main className="flex-1 bg-secondary">
-        <div className="p-6">{children}</div>
+    <div className="flex min-h-screen bg-background">
+      <Sidebar userRole={userProfile.role} userName={userProfile.full_name} />
+      <main className="ml-64 flex-1">
+        {children}
       </main>
     </div>
   );

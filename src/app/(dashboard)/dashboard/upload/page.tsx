@@ -1,10 +1,18 @@
+import BulkUploadInterface from '@/components/bulk-upload/BulkUploadInterface';
+import { Header } from '@/components/layout/header';
+
+export const metadata = {
+  title: 'Upload Dokumen | EXATA',
+  description: 'Unggah dokumen client massal untuk sistem distibusi Exata'
+};
+
 export default function UploadPage() {
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-foreground">Upload Dokumen</h1>
-      <p className="mt-2 text-muted-foreground">
-        Upload single dan batch akan diimplementasikan di Fase 4.
-      </p>
-    </div>
+    <>
+      <Header title="Upload Dokumen" description="Unggah dokumen client massal berbasis Folder Excel Match (Bulk Upload)" />
+      <div className="mx-auto w-full p-6">
+        <BulkUploadInterface />
+      </div>
+    </>
   );
 }
