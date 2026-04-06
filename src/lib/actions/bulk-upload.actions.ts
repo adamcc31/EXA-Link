@@ -16,7 +16,8 @@ export type FileUploadMeta = {
 
 export interface BulkUploadClientPayload {
   clientName: string;
-  dob: string; // ISO string 
+  dob: string; // ISO string
+  phone?: string;
   files: FileUploadMeta[];
   batchId?: string | null;
   picId?: string;
@@ -34,7 +35,10 @@ export async function finalizeClientUploadAction(payload: BulkUploadClientPayloa
   const supabase = await createClient();
 
   // 1. Get the current agent's session
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
   if (authError || !user) {
     throw new Error('Unauthorized');
   }
@@ -50,10 +54,11 @@ export async function finalizeClientUploadAction(payload: BulkUploadClientPayloa
   const userAgent = 'EXATA-System/1.0';
 
   // 3. Call the RPC
-  // @ts-ignore
+  // @ts-expect-error RPC type not yet generated
   const { data: clientId, error: rpcError } = await supabase.rpc('finalize_bulk_client_upload', {
     p_client_name: payload.clientName,
     p_client_dob: payload.dob.split('T')[0], // Cast to YYYY-MM-DD
+    p_client_phone: payload.phone || null,
     p_agent_id: user.id,
     p_pic_id: payload.picId || user.id,
     p_batch_id: payload.batchId || null,
@@ -62,7 +67,7 @@ export async function finalizeClientUploadAction(payload: BulkUploadClientPayloa
     p_token_prefix: prefix,
     p_expires_at: expiresAt.toISOString(),
     p_ip_address: ipAddress,
-    p_user_agent: userAgent
+    p_user_agent: userAgent,
   });
 
   if (rpcError) {
@@ -76,13 +81,19 @@ export async function finalizeClientUploadAction(payload: BulkUploadClientPayloa
   return {
     success: true,
     clientId,
-    accessLink: `/access/${token}` // Front-end link structure
+    accessLink: `/access/${token}`, // Front-end link structure
   };
 }
 
-export async function createBatchJobAction(totalClients: number) {
+export async function createBatchJobAction(
+  totalClients: number,
+  batchTitle: string = 'Batch Upload',
+) {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
   if (authError || !user) throw new Error('Unauthorized');
 
   // Get a dummy client_id or set client_id as nullable in batch_jobs schema.
@@ -91,30 +102,40 @@ export async function createBatchJobAction(totalClients: number) {
   // If `batch_jobs` requires `client_id`, it might be designed for single-client multiple-file batch upload.
   // Let me just skip batch_jobs creation since `client_id` is NOT NULL and we process multiple clients.
   // Instead, I'll just log an Audit Event.
-  
+
   const ipAddress = '127.0.0.1';
   const userAgent = 'EXATA-System/1.0';
-  
-  const { data, error } = await supabase.from('audit_logs').insert({
-    event_type: 'BATCH_UPLOAD_STARTED',
-    actor_type: 'agent',
-    actor_id: user.id,
-    resource_type: 'system',
-    metadata: { total_clients: totalClients },
-    ip_address: ipAddress,
-    user_agent: userAgent
-  }).select('id').single();
 
-  if (error) console.error("Create batch error:", error);
+  const { data, error } = await supabase
+    .from('audit_logs')
+    .insert({
+      event_type: 'BATCH_UPLOAD_STARTED',
+      actor_type: 'agent',
+      actor_id: user.id,
+      resource_type: 'system',
+      metadata: { total_clients: totalClients, batch_title: batchTitle },
+      ip_address: ipAddress,
+      user_agent: userAgent,
+    })
+    .select('id')
+    .single();
+
+  if (error) console.error('Create batch error:', error);
   return { batchId: data?.id || null };
 }
 
-export async function completeBatchJobAction(batchId: string, successCount: number, failedCount: number) {
+export async function completeBatchJobAction(
+  batchId: string,
+  successCount: number,
+  failedCount: number,
+) {
   if (!batchId) return;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return;
-  
+
   await supabase.from('audit_logs').insert({
     event_type: 'BATCH_UPLOAD_COMPLETED',
     actor_type: 'agent',
@@ -122,7 +143,7 @@ export async function completeBatchJobAction(batchId: string, successCount: numb
     resource_type: 'system',
     metadata: { batch_id: batchId, success_count: successCount, failed_count: failedCount },
     ip_address: '127.0.0.1',
-    user_agent: 'EXATA-System/1.0'
+    user_agent: 'EXATA-System/1.0',
   });
 }
 
@@ -132,11 +153,10 @@ export async function getAgentsAction() {
     .from('users')
     .select('id, full_name, role, email')
     .eq('is_active', true);
-    
+
   if (error) {
     console.error('Failed to fetch agents', error);
     return [];
   }
   return data;
 }
-

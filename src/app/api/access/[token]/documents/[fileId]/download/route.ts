@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createClient as createCoreClient } from '@supabase/supabase-js';
 import { successResponse, errorResponse, ERROR_CODES } from '@/lib/api/response';
 import { logAuditEvent, getClientIp, getClientUserAgent } from '@/lib/api/audit';
@@ -53,27 +53,42 @@ export async function GET(
     // Gunakan pure Core client agar request bersih dari intercept cookie (murni Service Role bypass)
     const supabaseAdmin = createCoreClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
     // Ambil info file dan verifikasi bahwa file milik client ini
     const { data: fileRecord, error } = await supabaseAdmin
       .from('document_files')
-      .select(`
-        id, storage_path, original_file_name, file_size,
-        documents!inner (client_id)
-      `)
+      .select('id, document_id, storage_path, original_file_name, file_size')
       .eq('id', fileId)
       .eq('status', 'active')
       .single();
 
     if (error || !fileRecord) {
-      return errorResponse(ERROR_CODES.NOT_FOUND, `File tidak ditemukan. Error DB: ${error?.message || 'PGRSTx'} (ID: ${fileId})`, 404);
+      return errorResponse(
+        ERROR_CODES.NOT_FOUND,
+        `File tidak ditemukan. Error DB: ${error?.message || 'PGRSTx'} (ID: ${fileId})`,
+        404,
+      );
+    }
+
+    // Ambil dokumen parent untuk verifikasi client_id secara terpisah menghindari bug inner join postgREST
+    const { data: documentRecord, error: docError } = await supabaseAdmin
+      .from('documents')
+      .select('client_id')
+      .eq('id', fileRecord.document_id)
+      .single();
+
+    if (docError || !documentRecord) {
+      return errorResponse(
+        ERROR_CODES.NOT_FOUND,
+        `Dokumen parent tidak valid untuk diverifikasi.`,
+        404,
+      );
     }
 
     // Verifikasi file milik client yang terverifikasi
-    const docClientId = (fileRecord.documents as unknown as { client_id: string }).client_id;
-    if (docClientId !== session.clientId) {
+    if (documentRecord.client_id !== session.clientId) {
       return errorResponse(ERROR_CODES.FORBIDDEN, 'Anda tidak memiliki akses ke file ini.', 403);
     }
 
@@ -87,7 +102,11 @@ export async function GET(
 
     if (signedError || !signedUrlData) {
       console.error('CreateSignedUrl Error:', signedError);
-      return errorResponse(ERROR_CODES.INTERNAL_ERROR, `Gagal membuat link download. Detail: ${signedError?.message || 'Unknown'}`, 500);
+      return errorResponse(
+        ERROR_CODES.INTERNAL_ERROR,
+        `Gagal membuat link download. Detail: ${signedError?.message || 'Unknown'}`,
+        500,
+      );
     }
 
     // Audit log
@@ -110,8 +129,13 @@ export async function GET(
       expires_in_seconds: SIGNED_URL_EXPIRY,
       file_name: fileRecord.original_file_name,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
     console.error('Download Route Unhandled Exception:', err);
-    return errorResponse(ERROR_CODES.INTERNAL_ERROR, `Terjadi kesalahan internal: ${err?.message || String(err)}`, 500);
+    return errorResponse(
+      ERROR_CODES.INTERNAL_ERROR,
+      `Terjadi kesalahan internal: ${errorMsg}`,
+      500,
+    );
   }
 }

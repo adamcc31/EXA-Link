@@ -12,7 +12,7 @@ export default function ExportPage() {
   const [dateTo, setDateTo] = useState('');
   const [isExporting, setIsExporting] = useState<string | null>(null);
 
-  async function handleExport(type: 'clients' | 'audit-logs') {
+  async function handleExport(type: 'clients' | 'audit-logs' | 'zip') {
     setIsExporting(type);
 
     try {
@@ -32,7 +32,10 @@ export default function ExportPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') ?? `${type}_export.csv`;
+      const defaultExt = type === 'zip' ? 'zip' : 'csv';
+      a.download =
+        res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') ??
+        `${type}_export.${defaultExt}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -57,19 +60,11 @@ export default function ExportPage() {
             <div className="flex gap-4">
               <div className="flex-1 space-y-2">
                 <label className="text-sm font-medium">Dari</label>
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                />
+                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
               </div>
               <div className="flex-1 space-y-2">
                 <label className="text-sm font-medium">Sampai</label>
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                />
+                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
               </div>
             </div>
           </CardContent>
@@ -84,9 +79,7 @@ export default function ExportPage() {
               </div>
               <div className="text-center">
                 <p className="font-medium">Export Client</p>
-                <p className="text-sm text-muted-foreground">
-                  Seluruh data client dalam CSV
-                </p>
+                <p className="text-sm text-muted-foreground">Seluruh data client dalam CSV</p>
               </div>
               <Button
                 className="w-full"
@@ -110,9 +103,7 @@ export default function ExportPage() {
               </div>
               <div className="text-center">
                 <p className="font-medium">Export Audit Logs</p>
-                <p className="text-sm text-muted-foreground">
-                  Log aktivitas sistem dalam CSV
-                </p>
+                <p className="text-sm text-muted-foreground">Log aktivitas sistem dalam CSV</p>
               </div>
               <Button
                 className="w-full"
@@ -126,6 +117,36 @@ export default function ExportPage() {
                   <Download className="mr-2 h-4 w-4" />
                 )}
                 Unduh CSV
+              </Button>
+              {(!dateFrom || !dateTo) && (
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ Tanggal dari & sampai wajib diisi
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex flex-col items-center gap-4 pt-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
+                <Download className="h-6 w-6 text-blue-500" />
+              </div>
+              <div className="text-center">
+                <p className="font-medium">Export Dokumen (.zip)</p>
+                <p className="text-sm text-muted-foreground">Arsip dokumen fisikal dalam .zip</p>
+              </div>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => handleExport('zip')}
+                disabled={isExporting !== null || !dateFrom || !dateTo}
+              >
+                {isExporting === 'zip' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Unduh ZIP
               </Button>
               {(!dateFrom || !dateTo) && (
                 <p className="text-xs text-muted-foreground">

@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server';
 import { withAuth, type AuthContext } from '@/lib/api/middleware';
 import { successResponse, paginatedResponse, errorResponse, ERROR_CODES } from '@/lib/api/response';
 import { logAuditEvent, getClientIp, getClientUserAgent } from '@/lib/api/audit';
@@ -22,12 +21,19 @@ export const GET = withAuth(async (ctx: AuthContext) => {
     const { page, per_page, search, sort_by, sort_order } = params;
     const offset = (page - 1) * per_page;
 
-    // Query builder
     let query = ctx.supabase
       .from('clients')
       .select('id, full_name, date_of_birth, phone, email, created_by, created_at', {
         count: 'exact',
       });
+
+    // Role and Agent filter
+    const requestedAgentId = url.searchParams.get('agent_id');
+    if (ctx.user.role === 'admin') {
+      if (requestedAgentId) query = query.eq('created_by', requestedAgentId);
+    } else {
+      query = query.eq('created_by', ctx.user.id);
+    }
 
     // Filter pencarian berdasarkan nama
     if (search) {
@@ -57,24 +63,47 @@ export const GET = withAuth(async (ctx: AuthContext) => {
       .eq('status', 'active');
 
     // Ambil active token per client
-    const { data: activeTokens } = await (ctx.supabase
+    const { data: activeTokens } = await ctx.supabase
       .from('client_tokens')
       .select('client_id, token_prefix, expires_at, is_active, has_opened, has_downloaded')
       .in('client_id', clientIds)
-      .eq('is_active', true) as any);
+      .eq('is_active', true);
+
+    interface TokenRow {
+      client_id: string;
+      token_prefix: string;
+      expires_at: string;
+      is_active: boolean;
+      has_opened: boolean;
+      has_downloaded: boolean;
+    }
 
     // Ambil nama pembuat
     const creatorIds = [...new Set((clients ?? []).map((c) => c.created_by))];
     const { data: creators } = await ctx.supabase
-        .from('users')
-        .select('id, full_name')
-        .in('id', creatorIds);
+      .from('users')
+      .select('id, full_name')
+      .in('id', creatorIds);
+
+    interface TokenData {
+      prefix: string;
+      expires_at: string;
+      is_active: boolean;
+      has_opened: boolean;
+      has_downloaded: boolean;
+    }
 
     const creatorsMap = new Map((creators ?? []).map((u) => [u.id, u.full_name]));
-    const tokensMap = new Map(
-      (activeTokens ?? []).map((t: any) => [
+    const tokensMap = new Map<string, TokenData>(
+      ((activeTokens as unknown as TokenRow[]) ?? []).map((t) => [
         t.client_id,
-        { prefix: t.token_prefix, expires_at: t.expires_at, is_active: t.is_active, has_opened: t.has_opened, has_downloaded: t.has_downloaded },
+        {
+          prefix: t.token_prefix,
+          expires_at: t.expires_at,
+          is_active: t.is_active,
+          has_opened: t.has_opened,
+          has_downloaded: t.has_downloaded,
+        },
       ]),
     );
 
