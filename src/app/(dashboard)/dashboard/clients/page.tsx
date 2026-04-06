@@ -39,6 +39,8 @@ interface BatchClient {
   has_downloaded: boolean;
   is_active: boolean | null;
   active_token: ClientToken | null;
+  phone?: string | null;
+  pic_name?: string | null;
 }
 
 interface Batch {
@@ -207,17 +209,17 @@ export default function ClientsPage() {
   }
 
   function getBatchClientStatusBadge(client: BatchClient) {
-    if (!client.is_active) {
+    if (!client.active_token || !client.active_token.is_active) {
       return <Badge variant="outline">—</Badge>;
     }
 
-    if (client.has_downloaded) {
+    if (client.active_token.has_downloaded) {
       return (
         <Badge className="bg-success text-success-foreground">
           <Download className="w-3 h-3 mr-1" /> Diunduh
         </Badge>
       );
-    } else if (client.has_opened) {
+    } else if (client.active_token.has_opened) {
       return (
         <Badge className="bg-primary/20 text-primary">
           <CheckCircle2 className="w-3 h-3 mr-1" /> Dilihat
@@ -459,7 +461,7 @@ export default function ClientsPage() {
                                           {batch.clients.map((client) => (
                                             <tr key={client.id} className="group hover:bg-card/50">
                                               <td className="py-2.5 text-muted-foreground">
-                                                {client.id.split('-')[0] || '-'}
+                                                {client.phone || '-'}
                                               </td>
                                               <td className="py-2.5 font-medium">
                                                 {client.full_name}
@@ -470,7 +472,7 @@ export default function ClientsPage() {
                                                 )}
                                               </td>
                                               <td className="py-2.5 text-blue-700 font-medium">
-                                                {batch.agent_name}
+                                                {client.pic_name || batch.agent_name}
                                               </td>
                                               <td className="py-2.5 text-center">
                                                 {getBatchClientStatusBadge(client)}
