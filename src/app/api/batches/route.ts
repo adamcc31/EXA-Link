@@ -12,17 +12,27 @@ export const GET = withAuth(async (ctx: AuthContext) => {
     // Admin melihat sesuai filter (atau semua jika null), agent melihat miliknya saja
     const agentId = ctx.user.role === 'admin' ? requestedAgentId || null : ctx.user.id;
 
+    interface RpcClientItem {
+      id: string;
+      full_name: string;
+      date_of_birth: string;
+      phone: string | null;
+      pic_name: string | null;
+      document_count: number;
+      has_opened: boolean;
+      has_downloaded: boolean;
+      is_active: boolean;
+      token_prefix: string | null;
+      expires_at: string | null;
+    }
+
     interface BatchResult {
       batch_id: string;
       batch_title: string;
       created_at: string;
       agent_name: string;
       total_clients: number;
-      clients: {
-        id: string;
-        full_name: string;
-        date_of_birth: string;
-      }[];
+      clients: RpcClientItem[];
     }
 
     // @ts-expect-error RPC type not yet generated
@@ -39,55 +49,23 @@ export const GET = withAuth(async (ctx: AuthContext) => {
 
     const batchesData = (data as unknown as BatchResult[]) || [];
 
-    // Kumpulkan semua client_id dari seluruh batch untuk mengambil data token
-    const clientIds = batchesData.flatMap((batch) => (batch.clients || []).map((c) => c.id));
-
-    if (clientIds.length > 0) {
-      const { data: activeTokens } = await ctx.supabase
-        .from('client_tokens')
-        .select('client_id, token_prefix, expires_at, is_active, has_opened, has_downloaded')
-        .in('client_id', clientIds)
-        .eq('is_active', true);
-
-      interface TokenRow {
-        client_id: string;
-        token_prefix: string;
-        expires_at: string;
-        is_active: boolean;
-        has_opened: boolean;
-        has_downloaded: boolean;
+    // Construct active_token langsung dari data JSONB RPC (sudah include field token)
+    batchesData.forEach((batch) => {
+      if (batch.clients) {
+        batch.clients = batch.clients.map((client) => ({
+          ...client,
+          active_token: client.is_active && client.expires_at
+            ? {
+                prefix: client.token_prefix ?? '',
+                expires_at: client.expires_at,
+                is_active: client.is_active,
+                has_opened: client.has_opened,
+                has_downloaded: client.has_downloaded,
+              }
+            : null,
+        }));
       }
-
-      interface TokenData {
-        prefix: string;
-        expires_at: string;
-        is_active: boolean;
-        has_opened: boolean;
-        has_downloaded: boolean;
-      }
-
-      const tokensMap = new Map<string, TokenData>(
-        ((activeTokens as unknown as TokenRow[]) ?? []).map((t) => [
-          t.client_id,
-          {
-            prefix: t.token_prefix,
-            expires_at: t.expires_at,
-            is_active: t.is_active,
-            has_opened: t.has_opened,
-            has_downloaded: t.has_downloaded,
-          },
-        ]),
-      );
-
-      batchesData.forEach((batch) => {
-        if (batch.clients) {
-          batch.clients = batch.clients.map((client) => ({
-            ...client,
-            active_token: tokensMap.get(client.id) ?? null,
-          }));
-        }
-      });
-    }
+    });
 
     return successResponse({
       data: batchesData,
