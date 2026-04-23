@@ -1,5 +1,6 @@
 import { withAuth, type AuthContext } from '@/lib/api/middleware';
 import { successResponse, errorResponse, ERROR_CODES } from '@/lib/api/response';
+export const dynamic = 'force-dynamic';
 
 export const GET = withAuth(async (ctx: AuthContext) => {
   try {
@@ -54,15 +55,16 @@ export const GET = withAuth(async (ctx: AuthContext) => {
       if (batch.clients) {
         batch.clients = batch.clients.map((client) => ({
           ...client,
-          active_token: client.is_active && client.expires_at
-            ? {
-                prefix: client.token_prefix ?? '',
-                expires_at: client.expires_at,
-                is_active: client.is_active,
-                has_opened: client.has_opened,
-                has_downloaded: client.has_downloaded,
-              }
-            : null,
+          active_token:
+            client.is_active && client.expires_at
+              ? {
+                  prefix: client.token_prefix ?? '',
+                  expires_at: client.expires_at,
+                  is_active: client.is_active,
+                  has_opened: client.has_opened,
+                  has_downloaded: client.has_downloaded,
+                }
+              : null,
         }));
       }
     });

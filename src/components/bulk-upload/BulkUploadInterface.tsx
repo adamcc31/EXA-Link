@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   parseExcelFile,
   validateBulkUploadV2,
@@ -61,16 +61,38 @@ export default function BulkUploadInterface() {
     onConfirm?: () => void;
   }>({ isOpen: false, title: '', message: '', type: 'alert' });
   const [excelFileName, setExcelFileName] = useState<string>('Batch Upload');
+  const [hasAutoDownloaded, setHasAutoDownloaded] = useState(false);
 
   const [dattaiFiles, setDattaiFiles] = useState<File[]>([]);
   const [resiFiles, setResiFiles] = useState<File[]>([]);
   const [kwitansiFiles, setKwitansiFiles] = useState<File[]>([]);
 
+  const handleDocFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: React.Dispatch<React.SetStateAction<File[]>>,
+  ) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    const oversizedFiles = files.filter((f) => f.size > MAX_SIZE);
+
+    if (oversizedFiles.length > 0) {
+      setModalConfig({
+        isOpen: true,
+        title: 'Ukuran File Melebihi Batas',
+        message: `Terdapat ${oversizedFiles.length} file yang diabaikan karena melebihi batas 2MB. Pastikan setiap file maksimal berukuran 2MB.`,
+        type: 'alert',
+      });
+    }
+
+    setter(files.filter((f) => f.size <= MAX_SIZE));
+  };
+
   useEffect(() => {
     getAgentsAction().then(setAgents);
   }, []);
 
-  const downloadExcel = () => {
+  const downloadExcel = useCallback(() => {
     const data = uploadResults.map((res) => {
       const client = validationResult?.valid.find((c) => c.clientName === res.name);
       return {
@@ -78,7 +100,7 @@ export default function BulkUploadInterface() {
         'Tanggal Lahir': client?.dob ? client.dob.toLocaleDateString('id-ID') : '',
         PIC: client?.picName || '',
         'Nomor Telephone': client?.phone || '',
-        Link: res.link || '',
+        Link: res.link ? `https://www.exata-indonesia.id${res.link}` : '',
       };
     });
 
@@ -89,7 +111,14 @@ export default function BulkUploadInterface() {
     worksheet['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 60 }];
 
     XLSX.writeFile(workbook, `Laporan_Upload_EXATA_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
+  }, [uploadResults, validationResult]);
+
+  useEffect(() => {
+    if (progress === 100 && !isUploading && !hasAutoDownloaded && uploadResults.length > 0) {
+      downloadExcel();
+      setHasAutoDownloaded(true);
+    }
+  }, [progress, isUploading, hasAutoDownloaded, uploadResults.length, downloadExcel]);
 
   const excelInputRef = useRef<HTMLInputElement>(null);
 
@@ -156,6 +185,7 @@ export default function BulkUploadInterface() {
     setIsUploading(true);
     setProgress(0);
     setUploadResults([]);
+    setHasAutoDownloaded(false);
 
     // Concurrency control: max 3 concurrent uploads
     const limit = pLimit(3);
@@ -337,12 +367,14 @@ export default function BulkUploadInterface() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="border bg-gray-50 rounded p-4">
               <h3 className="font-bold text-gray-800 mb-1">Dattai Ichijikin</h3>
-              <p className="text-xs text-gray-500 mb-3 font-mono">Format: [NamaLengkap].jpeg</p>
+              <p className="text-xs text-gray-500 mb-3 font-mono">
+                Wajib mengandung Nama Lengkap (Format: JPG, JPEG, PNG, PDF | Maks: 2MB)
+              </p>
               <input
                 type="file"
                 multiple
-                accept="image/jpeg, image/jpg"
-                onChange={(e) => setDattaiFiles(e.target.files ? Array.from(e.target.files) : [])}
+                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                onChange={(e) => handleDocFileChange(e, setDattaiFiles)}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 file:font-semibold hover:file:bg-blue-100 cursor-pointer"
                 disabled={!excelEntries || isUploading}
               />
@@ -352,13 +384,13 @@ export default function BulkUploadInterface() {
             <div className="border bg-gray-50 rounded p-4">
               <h3 className="font-bold text-gray-800 mb-1">Resi Transfer</h3>
               <p className="text-xs text-gray-500 mb-3 font-mono">
-                Format: [NomorUrut]_[Bank]_[Depan]_[Belakang]_[NoRek].jpg
+                Wajib mengandung Nama Lengkap (Format: JPG, JPEG, PNG, PDF | Maks: 2MB)
               </p>
               <input
                 type="file"
                 multiple
-                accept="image/jpeg, image/jpg"
-                onChange={(e) => setResiFiles(e.target.files ? Array.from(e.target.files) : [])}
+                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                onChange={(e) => handleDocFileChange(e, setResiFiles)}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 file:font-semibold hover:file:bg-blue-100 cursor-pointer"
                 disabled={!excelEntries || isUploading}
               />
@@ -368,13 +400,13 @@ export default function BulkUploadInterface() {
             <div className="border bg-gray-50 rounded p-4">
               <h3 className="font-bold text-gray-800 mb-1">Kwitansi</h3>
               <p className="text-xs text-gray-500 mb-3 font-mono">
-                Format: [NomorUrut]_[Tanggal]_[Depan]_[Belakang]_[Jenis].jpg
+                Wajib mengandung Nama Lengkap (Format: JPG, JPEG, PNG, PDF | Maks: 2MB)
               </p>
               <input
                 type="file"
                 multiple
-                accept="image/jpeg, image/jpg"
-                onChange={(e) => setKwitansiFiles(e.target.files ? Array.from(e.target.files) : [])}
+                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                onChange={(e) => handleDocFileChange(e, setKwitansiFiles)}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 file:font-semibold hover:file:bg-blue-100 cursor-pointer"
                 disabled={!excelEntries || isUploading}
               />
@@ -520,13 +552,17 @@ export default function BulkUploadInterface() {
           </div>
 
           {progress === 100 && !isUploading && (
-            <div className="mb-4">
+            <div className="mb-4 space-y-2">
               <Button
                 onClick={downloadExcel}
                 className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
               >
                 <span>⬇️</span> Download Laporan Link (Excel)
               </Button>
+              <p className="text-xs text-center text-gray-500 font-medium">
+                ⚠️ Excel seharusnya otomatis terunduh. Jika diblokir oleh browser, silakan klik
+                tombol di atas.
+              </p>
             </div>
           )}
 

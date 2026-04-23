@@ -4,6 +4,8 @@ import { logAuditEvent, getClientIp, getClientUserAgent } from '@/lib/api/audit'
 import { createClientSchema, listClientsSchema } from '@/features/clients/lib/validations';
 import { z } from 'zod/v4';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/clients — Daftar client dengan pagination dan pencarian.
  */

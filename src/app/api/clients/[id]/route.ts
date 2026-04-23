@@ -4,6 +4,7 @@ import { successResponse, errorResponse, ERROR_CODES } from '@/lib/api/response'
 import { logAuditEvent, getClientIp, getClientUserAgent } from '@/lib/api/audit';
 import { updateClientSchema } from '@/features/clients/lib/validations';
 import { z } from 'zod/v4';
+import { createClient as createCoreClient } from '@supabase/supabase-js';
 
 /**
  * GET /api/clients/[id] — Detail client lengkap.
@@ -25,19 +26,23 @@ export const GET = withAuth(async (ctx: AuthContext) => {
     // Ambil dokumen + file
     const { data: documents } = await ctx.supabase
       .from('documents')
-      .select(`
+      .select(
+        `
         id, document_type, title, description, created_at,
         document_files (
           id, original_file_name, file_size, mime_type, status, uploaded_at, retention_expires_at
         )
-      `)
+      `,
+      )
       .eq('client_id', client.id)
       .order('created_at', { ascending: false });
 
     // Ambil token history
     const { data: tokens } = await ctx.supabase
       .from('client_tokens')
-      .select('id, token_prefix, expires_at, is_active, failed_attempts, locked_until, generated_by, created_at')
+      .select(
+        'id, token_prefix, expires_at, is_active, failed_attempts, locked_until, generated_by, created_at',
+      )
       .eq('client_id', client.id)
       .order('created_at', { ascending: false });
 
@@ -52,9 +57,7 @@ export const GET = withAuth(async (ctx: AuthContext) => {
       ...client,
       documents: (documents ?? []).map((doc) => ({
         ...doc,
-        files: (doc.document_files ?? []).filter(
-          (f: { status: string }) => f.status === 'active',
-        ),
+        files: (doc.document_files ?? []).filter((f: { status: string }) => f.status === 'active'),
       })),
       tokens: tokens ?? [],
       created_by: creator ?? { id: client.created_by, full_name: 'Unknown' },
@@ -116,10 +119,30 @@ export const DELETE = withAuth(async (ctx: AuthContext) => {
 
     const id = ctx.request.nextUrl.pathname.split('/').pop();
 
-    const { error } = await ctx.supabase
-      .from('clients')
-      .delete()
-      .eq('id', id!);
+    // Hapus file dari Storage terlebih dahulu
+    const { data: documents } = await ctx.supabase
+      .from('documents')
+      .select('id')
+      .eq('client_id', id!);
+
+    if (documents && documents.length > 0) {
+      const docIds = documents.map((d) => d.id);
+      const { data: files } = await ctx.supabase
+        .from('document_files')
+        .select('storage_path')
+        .in('document_id', docIds);
+
+      if (files && files.length > 0) {
+        const paths = files.map((f) => f.storage_path);
+        const adminClient = createCoreClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        );
+        await adminClient.storage.from('client-documents').remove(paths);
+      }
+    }
+
+    const { error } = await ctx.supabase.from('clients').delete().eq('id', id!);
 
     if (error) {
       return errorResponse(ERROR_CODES.NOT_FOUND, 'Client tidak ditemukan.', 404);

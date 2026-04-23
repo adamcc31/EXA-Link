@@ -28,6 +28,7 @@ import {
   Pencil,
   Check,
   X,
+  Trash2,
 } from 'lucide-react';
 
 interface BatchClient {
@@ -95,6 +96,38 @@ export default function ClientsPage() {
   const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [isSavingTitle, setIsSavingTitle] = useState(false);
+
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean;
+    type: 'batch' | 'client';
+    id: string;
+    title: string;
+  }>({ isOpen: false, type: 'client', id: '', title: '' });
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleteDialog.id || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      const endpoint =
+        deleteDialog.type === 'batch'
+          ? `/api/batches/${deleteDialog.id}`
+          : `/api/clients/${deleteDialog.id}`;
+      const res = await fetch(endpoint, { method: 'DELETE' });
+      if (res.ok) {
+        setDeleteDialog((prev) => ({ ...prev, isOpen: false }));
+        if (tab === 'batch') fetchBatches();
+        else fetchClients();
+      } else {
+        alert('Gagal menghapus data.');
+      }
+    } catch {
+      alert('Terjadi kesalahan saat menghapus data.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const perPage = 20;
 
   const startEditingBatch = (batch: Batch, e: React.MouseEvent) => {
@@ -136,7 +169,7 @@ export default function ClientsPage() {
         ...(search ? { search } : {}),
         ...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
       });
-      const res = await fetch(`/api/clients?${params}`);
+      const res = await fetch(`/api/clients?${params}`, { cache: 'no-store' });
       const data = await res.json();
       if (data.success) {
         setClients(data.data);
@@ -158,7 +191,7 @@ export default function ClientsPage() {
         ...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
       });
 
-      const res = await fetch(`/api/batches?${params}`);
+      const res = await fetch(`/api/batches?${params}`, { cache: 'no-store' });
       const data = await res.json();
 
       if (data.success) {
@@ -427,6 +460,24 @@ export default function ClientsPage() {
                                     >
                                       <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                                     </Button>
+                                    {userRole === 'admin' && (
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDeleteDialog({
+                                            isOpen: true,
+                                            type: 'batch',
+                                            id: batch.batch_id,
+                                            title: `Hapus Batch: ${batch.batch_title || 'Batch Upload'}`,
+                                          });
+                                        }}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -483,7 +534,7 @@ export default function ClientsPage() {
                                               <td className="py-2.5 text-center">
                                                 {getTokenBadge(client.active_token)}
                                               </td>
-                                              <td className="py-2.5 text-right">
+                                              <td className="py-2.5 text-right flex items-center justify-end gap-1">
                                                 <Link href={`/dashboard/clients/${client.id}`}>
                                                   <Button
                                                     variant="ghost"
@@ -493,6 +544,24 @@ export default function ClientsPage() {
                                                     <Eye className="w-3 h-3 mr-1" /> Detail
                                                   </Button>
                                                 </Link>
+                                                {userRole === 'admin' && (
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setDeleteDialog({
+                                                        isOpen: true,
+                                                        type: 'client',
+                                                        id: client.id,
+                                                        title: `Hapus Klien: ${client.full_name}`,
+                                                      });
+                                                    }}
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </Button>
+                                                )}
                                               </td>
                                             </tr>
                                           ))}
@@ -500,7 +569,9 @@ export default function ClientsPage() {
                                       </table>
                                     ) : (
                                       <p className="text-xs text-muted-foreground text-center py-2">
-                                        Memuat list klien...
+                                        {!isLoading
+                                          ? 'Klien kosong atau telah dihapus.'
+                                          : 'Memuat list klien...'}
                                       </p>
                                     )}
                                   </div>
@@ -607,12 +678,29 @@ export default function ClientsPage() {
                             <td className="px-4 py-3 text-muted-foreground">
                               {client.created_by.full_name}
                             </td>
-                            <td className="px-4 py-3 text-center">
+                            <td className="px-4 py-3 text-center flex items-center justify-center gap-1">
                               <Link href={`/dashboard/clients/${client.id}`}>
                                 <Button variant="ghost" size="sm">
                                   <Eye className="mr-1 h-3.5 w-3.5" /> Detail
                                 </Button>
                               </Link>
+                              {userRole === 'admin' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 px-2"
+                                  onClick={() => {
+                                    setDeleteDialog({
+                                      isOpen: true,
+                                      type: 'client',
+                                      id: client.id,
+                                      title: `Hapus Klien: ${client.full_name}`,
+                                    });
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
                             </td>
                           </tr>
                         ))
@@ -654,6 +742,41 @@ export default function ClientsPage() {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={deleteDialog.isOpen}
+        onOpenChange={(open) => !open && setDeleteDialog((prev) => ({ ...prev, isOpen: false }))}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Konfirmasi Hapus Data</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-sm text-gray-700">
+            <p className="font-semibold mb-2">{deleteDialog.title}</p>
+            <p>
+              Aksi ini akan menghapus semua data terkait, termasuk file fisik dari storage secara
+              permanen dan tidak dapat dibatalkan.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialog((prev) => ({ ...prev, isOpen: false }))}
+              disabled={isDeleting}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? 'Menghapus...' : 'Hapus Permanen'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
