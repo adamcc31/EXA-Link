@@ -68,6 +68,20 @@ export default function DocumentsAccessPage() {
     // Cegah double-click atau klik bersamaan
     if (activeAction) return;
 
+    // PENTING: Buka tab baru SECARA SINKRON di dalam user gesture agar tidak diblokir Safari/iOS.
+    // Safari hanya mengizinkan window.open() di dalam synchronous call stack dari klik langsung.
+    const newTab = window.open('about:blank', '_blank');
+    if (newTab) {
+      newTab.document.title = 'Memuat dokumen...';
+      newTab.document.body.innerHTML = `
+        <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;font-family:system-ui,-apple-system,sans-serif;color:#555;background:#f8f9fa;">
+          <div style="width:40px;height:40px;border:3px solid #e0e0e0;border-top-color:#1d4ed8;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:16px;"></div>
+          <p style="font-size:15px;margin:0;">Memuat dokumen...</p>
+          <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+        </div>
+      `;
+    }
+
     setActiveAction(actionKey);
 
     try {
@@ -75,12 +89,38 @@ export default function DocumentsAccessPage() {
       const result = await res.json();
 
       if (result.success) {
-        window.open(result.data.download_url, '_blank');
+        const signedUrl = result.data.download_url;
+
+        if (newTab) {
+          // Redirect tab yang sudah terbuka ke signed URL
+          newTab.location.href = signedUrl;
+
+          // Untuk aksi download: tab akan kosong setelah file terunduh, tutup otomatis
+          if (action === 'download') {
+            setTimeout(() => {
+              try { newTab.close(); } catch { /* Tab mungkin sudah ditutup user */ }
+            }, 3000);
+          }
+        } else {
+          // Fallback jika popup tetap diblokir: gunakan <a> element
+          const anchor = document.createElement('a');
+          anchor.href = signedUrl;
+          anchor.target = '_blank';
+          anchor.rel = 'noopener noreferrer';
+          if (action === 'download') {
+            anchor.setAttribute('download', result.data.file_name || 'document');
+          }
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
+        }
       } else {
+        if (newTab) newTab.close();
         alert(result.error?.message ?? 'Gagal mengunduh file.');
       }
     } catch {
-      alert('Terjadi kesalahan.');
+      if (newTab) newTab.close();
+      alert('Terjadi kesalahan koneksi.');
     } finally {
       setActiveAction(null);
     }
