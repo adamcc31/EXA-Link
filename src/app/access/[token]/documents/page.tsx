@@ -142,9 +142,9 @@ export default function DocumentsAccessPage() {
           (data?.documents ?? []).map((doc) => (
             <Card key={doc.id} className="overflow-hidden">
               <CardHeader className="bg-muted/30 pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{doc.title}</CardTitle>
-                  <Badge variant="outline">
+                <div className="flex items-start justify-between gap-4">
+                  <CardTitle className="text-base break-words min-w-0 flex-1">{doc.title}</CardTitle>
+                  <Badge variant="outline" className="shrink-0 mt-0.5">
                     {DOCUMENT_TYPE_LABEL[doc.document_type as keyof typeof DOCUMENT_TYPE_LABEL] ?? doc.document_type}
                   </Badge>
                 </div>
@@ -153,13 +153,13 @@ export default function DocumentsAccessPage() {
                 {doc.files.map((file) => (
                   <div
                     key={file.id}
-                    className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-muted/30"
+                    className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3 transition-colors hover:bg-muted/30"
                   >
-                    <div className="flex items-center gap-3">
-                      <FileImage className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">{file.original_file_name}</p>
-                        <p className="text-xs text-muted-foreground">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <FileImage className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium break-all">{file.original_file_name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {formatUkuranFile(file.file_size)} • {new Date(file.uploaded_at).toLocaleDateString('id-ID')}
                         </p>
                       </div>
@@ -168,6 +168,7 @@ export default function DocumentsAccessPage() {
                       size="sm"
                       onClick={() => handleDownload(file.id, file.original_file_name)}
                       disabled={downloadingId === file.id}
+                      className="shrink-0"
                     >
                       {downloadingId === file.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
