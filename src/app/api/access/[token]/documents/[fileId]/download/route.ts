@@ -92,12 +92,14 @@ export async function GET(
       return errorResponse(ERROR_CODES.FORBIDDEN, 'Anda tidak memiliki akses ke file ini.', 403);
     }
 
+    const action = request.nextUrl.searchParams.get('action') || 'download';
+
     // Generate signed URL (5 menit)
     const SIGNED_URL_EXPIRY = 300; // 5 menit dalam detik
     const { data: signedUrlData, error: signedError } = await supabaseAdmin.storage
       .from('client-documents')
       .createSignedUrl(fileRecord.storage_path, SIGNED_URL_EXPIRY, {
-        download: true,
+        download: action === 'download',
       });
 
     if (signedError || !signedUrlData) {

@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Download, Loader2, AlertTriangle, FileImage } from 'lucide-react';
+import { FileText, Download, Loader2, AlertTriangle, FileImage, Eye } from 'lucide-react';
 import { formatUkuranFile } from '@/lib/utils';
 import { DOCUMENT_TYPE_LABEL } from '@/types/enums';
 
@@ -59,11 +59,11 @@ export default function DocumentsAccessPage() {
     }
   }
 
-  async function handleDownload(fileId: string, fileName: string) {
+  async function handleDownload(fileId: string, action: 'download' | 'view') {
     setDownloadingId(fileId);
 
     try {
-      const res = await fetch(`/api/access/${token}/documents/${fileId}/download`);
+      const res = await fetch(`/api/access/${token}/documents/${fileId}/download?action=${action}`);
       const result = await res.json();
 
       if (result.success) {
@@ -164,21 +164,39 @@ export default function DocumentsAccessPage() {
                         </p>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => handleDownload(file.id, file.original_file_name)}
-                      disabled={downloadingId === file.id}
-                      className="shrink-0"
-                    >
-                      {downloadingId === file.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Download className="mr-1 h-3.5 w-3.5" />
-                          Unduh
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        onClick={() => handleDownload(file.id, 'download')}
+                        disabled={downloadingId === file.id}
+                        className="w-full"
+                      >
+                        {downloadingId === file.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Download className="mr-1 h-3.5 w-3.5" />
+                            Unduh
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDownload(file.id, 'view')}
+                        disabled={downloadingId === file.id}
+                        className="w-full"
+                      >
+                        {downloadingId === file.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Eye className="mr-1 h-3.5 w-3.5" />
+                            Lihat
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </CardContent>
