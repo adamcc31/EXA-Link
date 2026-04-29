@@ -36,7 +36,7 @@ export default function DocumentsAccessPage() {
   const [data, setData] = useState<DocumentsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDocuments();
@@ -59,15 +59,22 @@ export default function DocumentsAccessPage() {
     }
   }
 
-  async function handleDownload(fileId: string, action: 'download' | 'view') {
-    setDownloadingId(fileId);
+  async function handleFileAction(e: React.MouseEvent, fileId: string, action: 'download' | 'view') {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const actionKey = `${fileId}:${action}`;
+
+    // Cegah double-click atau klik bersamaan
+    if (activeAction) return;
+
+    setActiveAction(actionKey);
 
     try {
       const res = await fetch(`/api/access/${token}/documents/${fileId}/download?action=${action}`);
       const result = await res.json();
 
       if (result.success) {
-        // Redirect ke signed URL
         window.open(result.data.download_url, '_blank');
       } else {
         alert(result.error?.message ?? 'Gagal mengunduh file.');
@@ -75,7 +82,7 @@ export default function DocumentsAccessPage() {
     } catch {
       alert('Terjadi kesalahan.');
     } finally {
-      setDownloadingId(null);
+      setActiveAction(null);
     }
   }
 
@@ -166,12 +173,13 @@ export default function DocumentsAccessPage() {
                     </div>
                     <div className="flex flex-col gap-2 shrink-0">
                       <Button
+                        type="button"
                         size="sm"
-                        onClick={() => handleDownload(file.id, 'download')}
-                        disabled={downloadingId === file.id}
+                        onClick={(e) => handleFileAction(e, file.id, 'download')}
+                        disabled={activeAction !== null}
                         className="w-full"
                       >
-                        {downloadingId === file.id ? (
+                        {activeAction === `${file.id}:download` ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <>
@@ -181,13 +189,14 @@ export default function DocumentsAccessPage() {
                         )}
                       </Button>
                       <Button
+                        type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => handleDownload(file.id, 'view')}
-                        disabled={downloadingId === file.id}
+                        onClick={(e) => handleFileAction(e, file.id, 'view')}
+                        disabled={activeAction !== null}
                         className="w-full"
                       >
-                        {downloadingId === file.id ? (
+                        {activeAction === `${file.id}:view` ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <>
