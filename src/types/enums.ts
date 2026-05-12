@@ -15,6 +15,7 @@ export const DOCUMENT_TYPE = {
   DATTAI_ICHIJIKIN: 'dattai_ichijikin',
   RESI_TRANSFER: 'resi_transfer',
   KWITANSI: 'kwitansi',
+  HAGAKI: 'hagaki',
 } as const;
 export type DocumentType = (typeof DOCUMENT_TYPE)[keyof typeof DOCUMENT_TYPE];
 
@@ -23,6 +24,7 @@ export const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
   dattai_ichijikin: 'Dattai Ichijikin',
   resi_transfer: 'Resi Transfer',
   kwitansi: 'Kwitansi',
+  hagaki: 'Hagaki',
 };
 
 /** Status file di storage. */

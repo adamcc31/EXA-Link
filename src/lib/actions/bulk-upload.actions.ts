@@ -12,6 +12,8 @@ export type FileUploadMeta = {
   mime_type: string;
   file_size: number;
   storage_path: string;
+  category?: string;
+  document_year?: string;
 };
 
 export interface BulkUploadClientPayload {
@@ -21,6 +23,7 @@ export interface BulkUploadClientPayload {
   files: FileUploadMeta[];
   batchId?: string | null;
   picId?: string;
+  tokenType?: string;
 }
 
 // Generate the secure token
@@ -68,6 +71,7 @@ export async function finalizeClientUploadAction(payload: BulkUploadClientPayloa
     p_expires_at: expiresAt.toISOString(),
     p_ip_address: ipAddress,
     p_user_agent: userAgent,
+    p_token_type: payload.tokenType || 'nenkin',
   });
 
   if (rpcError) {

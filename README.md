@@ -1,36 +1,144 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EXATA Client Access System
 
-## Getting Started
+## Ringkasan
+**EXATA Client Access** adalah platform *enterprise internal* yang dirancang untuk mengelola dan mendistribusikan dokumen sensitif kepada client secara aman. Sistem ini menggantikan proses distribusi manual yang berisiko tinggi dengan menyediakan portal akses berbasis token unik, di mana client dapat melihat dan mengunduh dokumen seperti *Dattai Ichijikin*, Resi Transfer, dan Kwitansi tanpa perlu melakukan registrasi akun tradisional, namun tetap terlindungi dengan verifikasi identitas yang ketat.
 
-First, run the development server:
+## Tujuan Proyek
+Sistem ini dibangun untuk menyelesaikan beberapa tantangan kritikal:
+- **Keamanan PII (Personally Identifiable Information):** Menghindari pengiriman dokumen sensitif melalui *unsecured channels* (Email/WhatsApp).
+- **Sentralisasi Data:** Menyatukan seluruh arsip dokumen client dalam satu repositori yang terorganisir.
+- **Audit Compliance:** Menyediakan *audit trail* lengkap untuk memantau siapa, kapan, dan dari mana sebuah dokumen diakses atau diunduh.
+- **Lifecycle Management:** Mengotomatisasi penghapusan dokumen sesuai kebijakan retensi (3 bulan) untuk menjaga kepatuhan privasi data.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Tech Stack
+Proyek ini menggunakan stack teknologi modern dengan prinsip *security-first*:
+- **Frontend:** Next.js 16.2 (App Router), React 19, TypeScript.
+- **Styling:** Tailwind CSS 4, shadcn/ui.
+- **Backend as a Service (BaaS):** Supabase.
+  - **Auth:** Supabase Auth (JWT & RBAC).
+  - **Database:** PostgreSQL dengan Row Level Security (RLS).
+  - **Serverless:** Supabase Edge Functions (Deno runtime).
+  - **Storage:** Supabase Storage (S3-compatible, Private Buckets).
+  - **Realtime:** Supabase Realtime (WebSocket untuk progres batch upload).
+- **Library Penting:** 
+  - **Validation:** Zod.
+  - **State Management:** TanStack Query (Client-side) & RSC (Server-side).
+  - **Cryptography:** Jose (JWT handling).
+  - **Data Export:** XLSX.
+
+## Arsitektur Sistem
+Sistem menggunakan pola **Modular Monolith** dengan delegasi logika berat ke *layer* database dan *edge computing*:
+- **Communication Flow:** Client berkomunikasi dengan Next.js App Router, yang kemudian melakukan *server-side calls* ke Supabase API.
+- **Service Responsibility:** Next.js menangani UI dan orkestrasi, sementara Supabase menangani persistensi, keamanan data (RLS), dan *background processing*.
+- **Database Queue Pattern:** Batch upload diproses secara asinkron menggunakan tabel `batch_jobs` dan dipicu oleh *database webhooks* menuju Edge Functions.
+
+## Alur Sistem
+1. **Authentication Flow:** Admin dan Agent masuk melalui Supabase Auth. Akses dibatasi berdasarkan *role* yang tersimpan di tabel `users`.
+2. **Document Distribution Flow:**
+   - Agent mendaftarkan client dan mengunggah dokumen.
+   - Sistem men-generate *secure link* unik.
+   - Client menerima link dan mengakses halaman `/access/[token]`.
+3. **Verification Flow (Challenge-Response):**
+   - Client wajib memasukkan Tanggal Lahir (DOB) sebagai verifikasi.
+   - Jika valid, sistem memberikan *session token* (JWT) yang disimpan di `httpOnly` cookie.
+4. **Realtime Flow:** Progres unggahan *batch* ditampilkan secara *realtime* kepada Agent menggunakan WebSocket.
+5. **Retention Flow:** `pg_cron` menjalankan *job* harian untuk menghapus file di storage yang telah melewati masa berlaku 3 bulan.
+
+## Fitur Utama
+- **Secure Tokenized Link:** URL akses menggunakan 256-bit entropy token yang di-hash dengan SHA-256 di database (Raw token tidak pernah disimpan).
+- **Challenge Verification:** Proteksi tambahan bagi client tanpa perlu *password*.
+- **Batch Upload Worker:** Mendukung unggahan hingga 50 file sekaligus dengan mekanisme *retry* otomatis.
+- **Granular Audit Logging:** Pencatatan setiap aksi (Login, View, Download, Create) secara *append-only*.
+- **Signed URL Access:** Dokumen di storage tidak memiliki akses publik; setiap unduhan menggunakan URL bertanda tangan dengan masa berlaku 5 menit.
+
+## Struktur Folder
+```text
+exata-app/
+├── src/
+│   ├── app/                # Next.js App Router (Pages & API Routes)
+│   ├── components/         # Reusable UI Components (shadcn/ui)
+│   ├── features/           # Logika bisnis terfragmentasi (Auth, Clients, Docs)
+│   ├── hooks/              # Custom React Hooks
+│   ├── lib/                # Konfigurasi Supabase, Utils, & Validations
+│   ├── types/              # Global TypeScript Interfaces
+│   └── middleware.ts       # Route protection & Session handling
+├── supabase/
+│   ├── functions/          # Edge Functions (Batch Worker, Token Gen)
+│   └── migrations/         # SQL Schema & RLS Policies
+└── public/                 # Static Assets
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment Variables
+Konfigurasikan file `.env.local` dengan variabel berikut:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Fungsi | Required |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL endpoint proyek Supabase | Ya |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public key untuk akses anonim/public | Ya |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret key untuk operasi admin (Server-side only) | Ya |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## API Documentation
+Sistem menggunakan RESTful API yang dihasilkan secara otomatis oleh PostgREST (Supabase) dengan tambahan *custom endpoints* di Next.js:
 
-## Learn More
+| Endpoint | Method | Deskripsi | Auth |
+|---|---|---|---|
+| `/auth/login` | POST | Autentikasi Agent/Admin | Public |
+| `/clients` | GET/POST | Manajemen data client | Internal JWT |
+| `/clients/{id}/tokens` | POST | Generate link akses baru | Internal JWT |
+| `/access/{token}` | GET | Validasi token client | Public |
+| `/access/{token}/verify` | POST | Verifikasi DOB & Get Session | Public |
+| `/access/{token}/documents` | GET | List dokumen client | Session Cookie |
 
-To learn more about Next.js, take a look at the following resources:
+## Database Structure
+- **Engine:** PostgreSQL.
+- **Relasi Utama:**
+  - `users` (1:N) `clients`: Agent mengelola banyak client.
+  - `clients` (1:N) `client_tokens`: Satu client memiliki sejarah token akses.
+  - `clients` (1:N) `documents`: Client memiliki beberapa kategori dokumen.
+  - `documents` (1:N) `document_files`: Satu kategori dokumen bisa berisi banyak file gambar.
+- **Migration System:** Menggunakan Supabase Migration via CLI.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Installation
+1. Pastikan Node.js v20+ dan npm terinstall.
+2. Clone repositori ini.
+3. Masuk ke direktori aplikasi:
+   ```bash
+   cd exata-app
+   ```
+4. Install dependensi:
+   ```bash
+   npm install
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Development Setup
+1. Copy `.env.example` menjadi `.env.local` dan isi nilainya.
+2. Jalankan server development:
+   ```bash
+   npm run dev
+   ```
+3. Akses aplikasi di `http://localhost:3000`.
 
-## Deploy on Vercel
+## Build & Production
+- **Build Process:** `npm run build` menghasilkan *bundle* yang dioptimalkan untuk produksi.
+- **Deployment:** Direkomendasikan menggunakan Vercel atau platform serupa yang mendukung Next.js.
+- **Database Setup:** Pastikan ekstensi `pg_cron` aktif di instance Supabase untuk menjalankan skrip pembersihan otomatis.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Security Notes
+- **Token Security:** Menggunakan model hashing SHA-256 sesuai `TOKEN_SECURITY_MODEL.md`.
+- **Data Protection:** Seluruh data PII terenkripsi *at rest* dan akses dikontrol ketat oleh RLS.
+- **Rate Limiting:** Implementasi pembatasan *request* di level database untuk mencegah *brute-force* pada *challenge verification*.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Dependency Analysis
+- **@supabase/ssr:** Esensial untuk mengelola sesi Supabase di Next.js App Router (Server & Client Components).
+- **zod:** Digunakan secara ketat untuk validasi kontrak data antara frontend dan backend.
+- **xlsx:** Digunakan untuk modul laporan administratif.
+- **jose:** Digunakan untuk verifikasi JWT pada *edge middleware* untuk performa maksimal.
+
+## Known Issues / Technical Debt
+- **Edge Cold Start:** Ada sedikit *latency* (1-2 detik) pada request pertama ke Edge Functions setelah lama tidak digunakan.
+- **Image Processing:** Saat ini sistem tidak melakukan kompresi gambar di sisi server (mengandalkan limit 10MB).
+
+## Improvement Recommendations
+- **Image Optimization:** Implementasi transformasi gambar otomatis (WebP/AVIF) untuk menghemat bandwidth.
+- **Redis Integration:** Menggunakan Upstash/Redis untuk *rate limiting* yang lebih *scalable* dibanding solusi tabel PostgreSQL.
+- **Advanced Analytics:** Integrasi dashboard dengan materialized views untuk performa laporan yang lebih cepat pada data skala besar.

@@ -113,6 +113,27 @@ export default function BulkUploadInterface() {
     XLSX.writeFile(workbook, `Laporan_Upload_EXATA_${new Date().toISOString().split('T')[0]}.xlsx`);
   }, [uploadResults, validationResult]);
 
+  const downloadTemplate = () => {
+    const data = [
+      {
+        'Nama Lengkap': 'BUDI SANTOSO',
+        'Tanggal Lahir': '15/08/1990',
+        'PIC': 'NAMA AGENT',
+        'Nomor Telephone': '08123456789'
+      },
+      {
+        'Nama Lengkap': 'ANI WIJAYA',
+        'Tanggal Lahir': '20/12/1992',
+        'PIC': 'NAMA AGENT',
+        'Nomor Telephone': ''
+      }
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template Nenkin');
+    XLSX.writeFile(workbook, `Template_Bulk_Nenkin.xlsx`);
+  };
+
   useEffect(() => {
     if (progress === 100 && !isUploading && !hasAutoDownloaded && uploadResults.length > 0) {
       downloadExcel();
@@ -304,11 +325,18 @@ export default function BulkUploadInterface() {
       )}
 
       <div className="bg-white border rounded-xl overflow-hidden shadow-sm mb-8">
-        <div className="bg-blue-600 p-4 text-white">
+        <div className="bg-blue-600 p-4 text-white flex justify-between items-center">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <span className="bg-white/20 px-2 py-1 rounded text-sm shrink-0">Step 1</span>
             Data Excel Master
           </h2>
+          <Button 
+            variant="outline" 
+            onClick={downloadTemplate} 
+            className="bg-white/10 border-white/20 text-white hover:bg-white/20 py-1.5 h-auto text-xs"
+          >
+            ⬇️ Download Template Excel
+          </Button>
         </div>
         <div className="p-6">
           <p className="text-sm text-gray-500 mb-4 font-medium">

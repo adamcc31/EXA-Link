@@ -20,11 +20,13 @@ interface Document {
   id: string;
   document_type: string;
   title: string;
+  document_year: string | null;
   files: DocumentFile[];
 }
 
 interface DocumentsData {
   client_name: string;
+  token_type: string;
   documents: Document[];
 }
 
@@ -185,12 +187,37 @@ export default function DocumentsAccessPage() {
               <p className="text-muted-foreground">Belum ada dokumen yang tersedia.</p>
             </CardContent>
           </Card>
+        ) : data?.token_type === 'gensen' ? (
+          /* Gensen 3-Container Layout */
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <GensenContainer 
+              title="Hagaki" 
+              docs={data.documents.filter(d => d.document_type === 'hagaki')} 
+              onAction={handleFileAction}
+              activeAction={activeAction}
+            />
+            <GensenContainer 
+              title="Resi Transfer" 
+              docs={data.documents.filter(d => d.document_type === 'resi_transfer')} 
+              onAction={handleFileAction}
+              activeAction={activeAction}
+            />
+            <GensenContainer 
+              title="Kwitansi" 
+              docs={data.documents.filter(d => d.document_type === 'kwitansi')} 
+              onAction={handleFileAction}
+              activeAction={activeAction}
+            />
+          </div>
         ) : (
+          /* Standard Nenkin Layout */
           (data?.documents ?? []).map((doc) => (
             <Card key={doc.id} className="overflow-hidden">
               <CardHeader className="bg-muted/30 pb-3">
                 <div className="flex items-start justify-between gap-4">
-                  <CardTitle className="text-base break-words min-w-0 flex-1">{doc.title}</CardTitle>
+                  <CardTitle className="text-base break-words min-w-0 flex-1">
+                    {doc.title.replace(/\s\(\d{4}\)$/, '')}
+                  </CardTitle>
                   <Badge variant="outline" className="shrink-0 mt-0.5">
                     {DOCUMENT_TYPE_LABEL[doc.document_type as keyof typeof DOCUMENT_TYPE_LABEL] ?? doc.document_type}
                   </Badge>
@@ -198,55 +225,12 @@ export default function DocumentsAccessPage() {
               </CardHeader>
               <CardContent className="space-y-2 pt-4">
                 {doc.files.map((file) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3 transition-colors hover:bg-muted/30"
-                  >
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <FileImage className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium break-all">{file.original_file_name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {formatUkuranFile(file.file_size)} • {new Date(file.uploaded_at).toLocaleDateString('id-ID')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2 shrink-0">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={(e) => handleFileAction(e, file.id, 'download')}
-                        disabled={activeAction !== null}
-                        className="w-full"
-                      >
-                        {activeAction === `${file.id}:download` ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Download className="mr-1 h-3.5 w-3.5" />
-                            Unduh
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => handleFileAction(e, file.id, 'view')}
-                        disabled={activeAction !== null}
-                        className="w-full"
-                      >
-                        {activeAction === `${file.id}:view` ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Eye className="mr-1 h-3.5 w-3.5" />
-                            Lihat
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
+                  <DocumentRow 
+                    key={file.id} 
+                    file={file} 
+                    onAction={handleFileAction} 
+                    activeAction={activeAction} 
+                  />
                 ))}
               </CardContent>
             </Card>
@@ -256,6 +240,100 @@ export default function DocumentsAccessPage() {
         <p className="text-center text-xs text-muted-foreground">
           © 2026 EXATA — File dapat diunduh selama link masih berlaku
         </p>
+      </div>
+    </div>
+  );
+}
+
+function GensenContainer({ title, docs, onAction, activeAction }: { 
+  title: string; 
+  docs: Document[]; 
+  onAction: (e: React.MouseEvent, id: string, action: 'download' | 'view') => void;
+  activeAction: string | null;
+}) {
+  return (
+    <div className="space-y-4">
+      <h3 className="font-bold text-lg border-b pb-2 flex items-center justify-between">
+        {title}
+        <Badge variant="secondary" className="text-[10px] uppercase">{docs.reduce((acc, d) => acc + d.files.length, 0)} File</Badge>
+      </h3>
+      {docs.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">Tidak ada dokumen.</p>
+      ) : (
+        docs.map(doc => (
+          <div key={doc.id} className="space-y-2">
+            {doc.document_year && (
+              <Badge variant="outline" className="bg-primary/5 text-[10px] font-bold">
+                Tahun {doc.document_year}
+              </Badge>
+            )}
+            {doc.files.map(file => (
+              <DocumentRow 
+                key={file.id} 
+                file={file} 
+                onAction={onAction} 
+                activeAction={activeAction}
+                isGensen
+              />
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function DocumentRow({ file, onAction, activeAction, isGensen = false }: { 
+  file: DocumentFile; 
+  onAction: (e: React.MouseEvent, id: string, action: 'download' | 'view') => void;
+  activeAction: string | null;
+  isGensen?: boolean;
+}) {
+  return (
+    <div className={`flex flex-col gap-3 rounded-lg border px-3 py-3 transition-colors hover:bg-muted/30 ${isGensen ? 'bg-white shadow-sm' : ''}`}>
+      <div className="flex items-start gap-3 min-w-0 flex-1">
+        <FileImage className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium break-all leading-relaxed">{file.original_file_name}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {formatUkuranFile(file.file_size)} • {new Date(file.uploaded_at).toLocaleDateString('id-ID')}
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          size="sm"
+          onClick={(e) => onAction(e, file.id, 'download')}
+          disabled={activeAction !== null}
+          className="h-8 text-[11px]"
+        >
+          {activeAction === `${file.id}:download` ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <>
+              <Download className="mr-1 h-3 w-3" />
+              Unduh
+            </>
+          )}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={(e) => onAction(e, file.id, 'view')}
+          disabled={activeAction !== null}
+          className="h-8 text-[11px]"
+        >
+          {activeAction === `${file.id}:view` ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <>
+              <Eye className="mr-1 h-3 w-3" />
+              Lihat
+            </>
+          )}
+        </Button>
       </div>
     </div>
   );

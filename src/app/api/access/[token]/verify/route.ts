@@ -67,7 +67,7 @@ export async function POST(
     // Lookup token
     const { data: tokenRecord, error: tokenError } = await supabaseAdmin
       .from('client_tokens')
-      .select('id, client_id, expires_at, is_active, failed_attempts, locked_until')
+      .select('id, client_id, expires_at, is_active, failed_attempts, locked_until, token_type')
       .eq('token_hash', tokenHash)
       .single();
 
@@ -166,6 +166,7 @@ export async function POST(
     const sessionToken = await new SignJWT({
       token_hash: tokenHash,
       client_id: clientData.id,
+      token_type: tokenRecord.token_type,
       verified_at: new Date().toISOString(),
     })
       .setProtectedHeader({ alg: 'HS256' })

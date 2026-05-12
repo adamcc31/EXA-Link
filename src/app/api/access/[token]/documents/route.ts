@@ -10,7 +10,7 @@ import { jwtVerify } from 'jose';
 async function verifySession(
   request: NextRequest,
   rawToken: string,
-): Promise<{ clientId: string; tokenHash: string } | null> {
+): Promise<{ clientId: string; tokenHash: string; tokenType: string } | null> {
   const sessionCookie = request.cookies.get('exata_session')?.value;
   if (!sessionCookie) return null;
 
@@ -24,6 +24,7 @@ async function verifySession(
     return {
       clientId: payload.client_id as string,
       tokenHash: tokenHash,
+      tokenType: payload.token_type as string,
     };
   } catch {
     return null;
@@ -63,12 +64,13 @@ export async function GET(
     const { data: documents, error } = await supabaseAdmin
       .from('documents')
       .select(`
-        id, document_type, title, created_at,
+        id, document_type, title, created_at, document_year,
         document_files (
           id, original_file_name, file_size, mime_type, uploaded_at
         )
       `)
       .eq('client_id', session.clientId)
+      .eq('category', session.tokenType)
       .eq('document_files.status', 'active')
       .order('created_at', { ascending: false });
 
@@ -89,6 +91,7 @@ export async function GET(
           file_size: f.file_size,
           uploaded_at: f.uploaded_at,
         })),
+        document_year: doc.document_year,
       }));
 
     return successResponse({
