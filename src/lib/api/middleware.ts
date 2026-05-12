@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { errorResponse, ERROR_CODES } from '@/lib/api/response';
 import type { UserRole } from '@/types/enums';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/database';
+import type { Database } from '@/types/database.types';
 
 /**
  * Context yang tersedia di setiap handler API yang terautentikasi.

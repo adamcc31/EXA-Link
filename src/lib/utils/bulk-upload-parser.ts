@@ -481,7 +481,7 @@ export function validateGensenUploadV1(
     }
 
     // Split years into array (e.g. "6A 5A" -> ["6A", "5A"])
-    const yearsArray = entry.tahunGensen.split(/\s+/).filter(Boolean);
+    const yearsArray = (entry.tahunGensen || '').split(/\s+/).filter(Boolean);
 
     const client: ValidatedGensenClient = {
       clientName: entry.namaLengkap,
@@ -560,7 +560,7 @@ export function validateGensenUploadV1(
   // Layer 3: Quantity Validation based on number of years in Excel
   for (const client of valid) {
     const entry = excelEntries.find(e => e.compoundKey === client.clientName.replace(/_/g, ' ').trim().toUpperCase() || sanitizeName(e.namaLengkap) === sanitizeName(client.clientName));
-    const expectedCount = entry?.tahunGensen.split(/\s+/).filter(Boolean).length || 0;
+    const expectedCount = (entry?.tahunGensen || '').split(/\s+/).filter(Boolean).length || 0;
 
     const hCount = client.files.hagaki.length;
     const rCount = client.files.resi_transfer.length;

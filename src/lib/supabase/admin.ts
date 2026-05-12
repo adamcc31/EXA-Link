@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import type { Database } from '@/types/database';
+import type { Database } from '@/types/database.types';
 
 /**
  * Membuat Supabase admin client menggunakan Service Role Key.

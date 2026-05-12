@@ -91,6 +91,7 @@ export interface Database {
           locked_until: string | null;
           generated_by: string;
           created_at: string;
+          token_type: 'nenkin' | 'gensen';
         };
         Insert: {
           id?: string;
@@ -103,6 +104,7 @@ export interface Database {
           locked_until?: string | null;
           generated_by: string;
           created_at?: string;
+          token_type?: 'nenkin' | 'gensen';
         };
         Update: {
           is_active?: boolean;
@@ -130,20 +132,24 @@ export interface Database {
         Row: {
           id: string;
           client_id: string;
-          document_type: 'dattai_ichijikin' | 'resi_transfer' | 'kwitansi';
+          document_type: 'dattai_ichijikin' | 'resi_transfer' | 'kwitansi' | 'hagaki';
           title: string;
           description: string | null;
           uploaded_by: string;
           created_at: string;
+          category: 'nenkin' | 'gensen';
+          document_year: string | null;
         };
         Insert: {
           id?: string;
           client_id: string;
-          document_type: 'dattai_ichijikin' | 'resi_transfer' | 'kwitansi';
+          document_type: 'dattai_ichijikin' | 'resi_transfer' | 'kwitansi' | 'hagaki';
           title: string;
           description?: string | null;
           uploaded_by: string;
           created_at?: string;
+          category?: 'nenkin' | 'gensen';
+          document_year?: string | null;
         };
         Update: {
           title?: string;

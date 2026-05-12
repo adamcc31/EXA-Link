@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/database';
+import type { Database } from '@/types/database.types';
 import type { ActorType, ResourceType, EventType } from '@/types/enums';
 
 interface AuditLogParams {

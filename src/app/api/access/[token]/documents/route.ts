@@ -10,7 +10,7 @@ import { jwtVerify } from 'jose';
 async function verifySession(
   request: NextRequest,
   rawToken: string,
-): Promise<{ clientId: string; tokenHash: string; tokenType: string } | null> {
+): Promise<{ clientId: string; tokenHash: string; tokenType: 'nenkin' | 'gensen' } | null> {
   const sessionCookie = request.cookies.get('exata_session')?.value;
   if (!sessionCookie) return null;
 
@@ -24,7 +24,7 @@ async function verifySession(
     return {
       clientId: payload.client_id as string,
       tokenHash: tokenHash,
-      tokenType: payload.token_type as string,
+      tokenType: payload.token_type as 'nenkin' | 'gensen',
     };
   } catch {
     return null;
